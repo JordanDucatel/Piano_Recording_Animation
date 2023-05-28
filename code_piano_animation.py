@@ -1,6 +1,7 @@
 #-----------------------------------------------------
 #PIANO ANIMATION CODE
-#Last Updated: Mar. 20, 2023
+#Last Updated: May. 27, 2023
+#See README.md file for information
 #-----------------------------------------------------
 
 
@@ -16,8 +17,49 @@ import time
 from selenium import webdriver
 import shutil
 import os
+import sys
+import time
+import argparse
+import json
 #-----------------------------------------------------
 
+
+#----------------------------------------------
+#USE PARSER FOR COMMAND LINE ARGUMENTS
+parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
+        description='Create an Audio-Video Animation file for an input single-instrument MIDI file.',
+        epilog = 'Note: \n - The animation creation and mp4 file saving can take on the order of the length of the audio file to save. \n - The MIDI to MP3 online file converter used has a limit of 2 conversions per day. \n\nFor more information on this software, contact Jordan Ducatel at jfducatel@gmail.com.')
+
+#Create --param argument:
+parser.add_argument("MIDI", metavar="filename.mid", help="Input .mid audio file.", type=str, default="filename")
+
+#Create --seed argument:
+parser.add_argument("--seed", metavar="INT", help="random seed used for creating the datasets", type=int, default=1234)
+
+#Create all other arguments:
+parser.add_argument("--FPS", metavar="INT", help="number of frames per seconds for the animation", type=int, default=20)
+parser.add_argument("--size_i", metavar="FLOAT", help="initial size of note", type=float, default=10_000.0)
+parser.add_argument("--size_f", metavar="FLOAT", help="final size of note", type=float, default=10_000.0)
+parser.add_argument("--note_length_frame", metavar="INT", help="duration of each notes in number of frames", type=int, default=7)
+parser.add_argument("--fade_to", metavar="FLOAT", help="final transparency level of note", type=float, default=0.6)
+parser.add_argument("--prenote_num_frames", metavar="INT", help="number of frames where marker appears before the note is played", type=int, default=0)
+
+
+args = parser.parse_args()
+
+#define input variables:
+piano_file_name = args.MIDI
+seed = args.seed
+FPS = args.FPS
+size_i = args.size_i
+size_f = args.size_f
+note_length_frame = args.note_length_frame
+fade_to = args.fade_to
+prenote_num_frames = args.prenote_num_frames
+#----------------------------------------------
+
+#set ranodm seed:
+np.random.seed(seed)
 
 #-----------------------------------------------------
 #EXTRACT MIDI FILE INFO:
@@ -26,7 +68,7 @@ def mid_to_arr(piano_file_name, FPS=20):
     '''
     Convert .mid file info to numpy array for single track piano recording.
     '''
-    mid = mido.MidiFile(piano_file_name + '.mid', clip=True) #acces file
+    mid = mido.MidiFile(piano_file_name + '/' + piano_file_name + '.mid', clip=True) #acces file
     data = mid.tracks[0] #keep track info
     
     music_info = [] #setup list to be filled
@@ -155,7 +197,6 @@ def frame_info(music_info, real_time, FPS=20, size_i=100, size_f=2000,
     return x_pos, y_pos, marker_size, color_tuple, F
 #-----------------------------------------------------
 
-
 #-----------------------------------------------------
 #PLOT RESULTS FOR ANIMATION
 def make_ani(FPS, x_pos, y_pos, marker_size, color_tuple, F, marker='o', plot=True, full_marker=True, edge_width=6):
@@ -197,7 +238,7 @@ def make_ani(FPS, x_pos, y_pos, marker_size, color_tuple, F, marker='o', plot=Tr
 def save_ani(FPS, ani, piano_file_name):
     # saving to mp4 using ffmpeg writer
     writervideo = matplotlib.animation.FFMpegWriter(fps=FPS)
-    ani.save(piano_file_name + '.mp4', writer=writervideo, dpi=300, savefig_kwargs={'facecolor':'k'})
+    ani.save(piano_file_name + '/' + piano_file_name + '.mp4', writer=writervideo, dpi=300, savefig_kwargs={'facecolor':'k'})
     plt.close()
     return
 #-----------------------------------------------------
@@ -205,10 +246,10 @@ def save_ani(FPS, ani, piano_file_name):
 #-----------------------------------------------------
 #Merge mp3 to mp4 file #VERY SLOW
 def merge(piano_file_name):
-    infile1 = ffmpeg.input(piano_file_name + '.mp4')
-    infile2 = ffmpeg.input(piano_file_name.replace('_', '-') + '.mp3')
+    infile1 = ffmpeg.input(piano_file_name + '/' + piano_file_name + '.mp4')
+    infile2 = ffmpeg.input(piano_file_name + '/' + piano_file_name.replace('_', '_') + '.mp3')
 
-    ffmpeg.concat(infile1, infile2, v=1, a=1).output(piano_file_name + "_Audio_Video.mp4").run()
+    ffmpeg.concat(infile1, infile2, v=1, a=1).output(piano_file_name + '/' + piano_file_name + "_Audio_Video.mp4").run()
     return
 #-----------------------------------------------------
 
@@ -238,13 +279,13 @@ def mid_to_mp3(piano_file_name, v=False):
 
     time.sleep(2)
 
-    full_mid_path = os.path.join(os.getcwd(), piano_file_name) + '.mid' #get full file location
+    full_mid_path = os.path.join(os.getcwd(), piano_file_name + '/' + piano_file_name) + '.mid' #get full file location
     file_input[1].send_keys(full_mid_path)
-    time.sleep(5)
+    time.sleep(10)
 
     convert_button = driver.find_element('id', 'convert')      
     convert_button.click()
-    time.sleep(15)
+    time.sleep(20)
 
     #moved to new url when pressing convert
     new_url = driver.current_url
@@ -261,170 +302,121 @@ def mid_to_mp3(piano_file_name, v=False):
         print(button[0].get_attribute('outerHTML'))
 
     button[0].click() #press download button
-    time.sleep(5)
+    time.sleep(10)
 
-    #move file from downloads:
+    #move file from downloads to current directory:
     download_folder = os.path.join(os.path.join(os.environ['USERPROFILE']), 'Downloads')
     download_full_path = os.path.join(download_folder, piano_file_name) + '.mp3'
     
     shutil.move(download_full_path, os.path.join(os.getcwd(), piano_file_name) + '.mp3')
+    
+    #move file from current directory to new folder of same name:
+    os.rename(piano_file_name + '.mp3', piano_file_name + '/' + piano_file_name + '.mp3')
 
     if v == True:
         print('File ', os.path.join(os.getcwd(), piano_file_name) + '.mp3', ' created')
     
     return
 
-#-----------------------------------------------------
-#Increase volume of mp3 file:
-def mp3_volume_change_old(piano_file_name, v=True):
-    #open volume change website:
-    url = 'https://www.onlineconverter.com/increase-mp3-volume' # URL of website
-
-    options = webdriver.ChromeOptions()
-
-    if v == False:
-        options.add_argument('headless') #stop page from being displayed
-
-    driver = webdriver.Chrome(options=options) #use Chrome to search url
-    driver.get(url) # Opening the website
-    time.sleep(3) #keep page open for 3s
-
-    if v == True:
-        print(driver.current_url)
-
-    file_input = driver.find_elements('xpath', '//input[@type="file"]')
-    
-    time.sleep(2)
-
-    full_mp3_path = os.path.join(os.getcwd(), piano_file_name) + '.mp3' #get full file location
-    file_input[0].send_keys(full_mp3_path)
-    time.sleep(3)
-    
-    #select Volume change dropdown
-    #NO, default is Increase 100% ==> Double sound by default which is good.
-    
-    #press convert button:
-    convert_button = driver.find_elements('id', 'convert-button')
-    convert_button[0].click()
-    time.sleep(10) #wait for file to be converted
-    
-    new_url = driver.current_url
-    driver.get(new_url)
-
-    if v == True:
-        print(driver.current_url)
-    
-    time.sleep(2)
-    driver.refresh()
-    time.sleep(2)
-    
-    #download file:
-    convert_message = driver.find_elements('id', 'convert-message')
-    convert_message[0].click()
-    time.sleep(5)
-    
-    #sleep for a second
-    time.sleep(2)
-
-    #accept the alert
-    #alert.accept()
-    
-    
-    return
-
-#Increase volume of mp3 file:
-def mp3_volume_change(piano_file_name, v=True):
-    #open volume change website:
-    url = 'https://mp3cut.net/change-volume' # URL of website
-
-    options = webdriver.ChromeOptions()
-
-    if v == False:
-        options.add_argument('headless') #stop page from being displayed
-
-    driver = webdriver.Chrome(options=options) #use Chrome to search url
-    driver.get(url) # Opening the website
-    time.sleep(2) #keep page open for 3s
-
-    if v == True:
-        print(driver.current_url)
-
-    
-    file_input = driver.find_elements('xpath', '//input[@type="file"]')
-    time.sleep(1)
-
-    
-    full_mp3_path = os.path.join(os.getcwd(), piano_file_name) + '.mp3' #get full file location
-    file_input[0].send_keys(full_mp3_path) #load file to website
-    time.sleep(3)
-    
-    
-    #select Volume change button
-    volume = driver.find_elements('class name', 'val-out')
-    print(volume)
-    print(volume[0])
-    
-    for ii in range(len(volume[0].__dir__())):
-        print(volume[0].__dir__()[ii])
-    
-    print('\n')
-    print(volume[0].get_attribute)
-    #time.sleep(1)
-
-
-    '''
-    #press convert button:
-    convert_button = driver.find_elements('id', 'convert-button')
-    convert_button[0].click()
-    time.sleep(10) #wait for file to be converted
-    
-    new_url = driver.current_url
-    driver.get(new_url)
-
-    if v == True:
-        print(driver.current_url)
-    
-    time.sleep(2)
-    driver.refresh()
-    time.sleep(2)
-    
-    #download file:
-    convert_message = driver.find_elements('id', 'convert-message')
-    convert_message[0].click()
-    time.sleep(5)
-    
-    #sleep for a second
-    time.sleep(2)
-
-    #accept the alert
-    #alert.accept()
-    '''
-    
-    return
-
 
 #-----------------------------------------------------
-#define input variables:
-piano_file_name = 'Musette_in_D_Major'
-np.random.seed(1234)
-
-#Run the above functions:
-music_info, real_time = mid_to_arr(piano_file_name)
-
-x_pos, y_pos, marker_size, color_tuple, F = frame_info(music_info, real_time, 
-                                                        prenote_num_frames=0, note_length_frame=7,
-                                                        size_i=10000, size_f=10000, fade_to=0.6)
-
-ani = make_ani(20, x_pos, y_pos, marker_size, color_tuple, F, marker='s', plot=False, full_marker=True)
-
-save_ani(20, ani, piano_file_name) #SLOW
-
-mid_to_mp3(piano_file_name, v=False) #~30s
-
-#mp3_volume_change(piano_file_name, v=False) #To be developed
-
-merge(piano_file_name) #SLOW
+print(f'Program Started:')
+start_time = time.time()
 
 
+#Create a folder to hold all the files created:
+print(f'\nCreate New Folder:')
+if os.path.exists(piano_file_name) == False: #check if folder already exist.
+    if os.path.isfile(piano_file_name + '.mid') == True: #check that file exist from current directory
+        os.makedirs(piano_file_name)
+        print(f'\tNew directory {piano_file_name} created.')
+        print(f'\tRuntime: {np.round(time.time() - start_time, 2)}s')
+    else:
+        print(f'\tFile {piano_file_name}.mid not found.')
+        print(f'\tRuntime: {np.round(time.time() - start_time, 2)}s')
+        print(f'\nEnding Program.')
+        sys.exit() #end the program
+else:
+    print(f'\t{piano_file_name} directory already exist.')
+    print(f'\tRuntime: {np.round(time.time() - start_time, 2)}s')
+
+
+
+#Move the .mid file to the newly created folder:
+print(f'\nMove MIDI File to New Folder:')
+if os.path.isfile(piano_file_name + '/' + piano_file_name + '.mid') == False: #check that file not already in directory
+    if os.path.isfile(piano_file_name + '.mid') == True: #check that file exist from current directory
+        os.rename(piano_file_name + '.mid', piano_file_name + '/' + piano_file_name + '.mid')
+        print(f'\tFile {piano_file_name}.mid moved to {piano_file_name} directory.')
+        print(f'\tRuntime: {np.round(time.time() - start_time, 2)}s')
+    else:
+        print(f'\tFile {piano_file_name}.mid not found.')
+        print(f'\tRuntime: {np.round(time.time() - start_time, 2)}s')
+        print(f'\nEnding Program.')
+        sys.exit() #end the program
+else:
+    print(f'\tFile {piano_file_name}.mid already in {piano_file_name} directory.')
+    print(f'\tRuntime: {np.round(time.time() - start_time, 2)}s')
+
+
+#Extract the relevent information form the .mid file:
+print(f'\nExtract Information from MIDI File:')
+music_info, real_time = mid_to_arr(piano_file_name, FPS=FPS)
+print(f'\tInformation extracted from {piano_file_name}.mid file.')
+print(f'\tRuntime: {np.round(time.time() - start_time, 2)}s')
+
+
+#Create 3D array of frames:
+print(f'\nCreate Frames:')
+x_pos, y_pos, marker_size, color_tuple, F = frame_info(music_info, real_time, FPS=FPS, 
+                                                        prenote_num_frames=prenote_num_frames, note_length_frame=note_length_frame,
+                                                        size_i=size_i, size_f=size_f, fade_to=fade_to)
+print(f'\tFrames created.')
+print(f'\tRuntime: {np.round(time.time() - start_time, 2)}s')
+
+
+#Create animation from frames:
+print(f'\nCreate Animation from Frames:')
+ani = make_ani(FPS, x_pos, y_pos, marker_size, color_tuple, F, marker='s', plot=False, full_marker=True)
+print(f'\tAnimation created from frames.')
+print(f'\tRuntime: {np.round(time.time() - start_time, 2)}s')
+
+
+#Save the animation in a mp4 file:
+#check if file already exist:
+print(f'\nSave Animation Video File:')
+if os.path.isfile(piano_file_name + '/' + piano_file_name + '.mp4') == False:
+    save_ani(FPS, ani, piano_file_name) #SLOW
+    print(f'\tAnimation video file {piano_file_name}.mp4 created.')
+    print(f'\tRuntime: {np.round(time.time() - start_time, 2)}s')
+else:
+    print(f'\tAnimation video file {piano_file_name}.mp4 already in {piano_file_name} directory.')
+    print(f'\tRuntime: {np.round(time.time() - start_time, 2)}s')
+
+
+#Convert .mid file to .mp3 file:
+print(f'\nConvert MIDI File to MP3:')
+#check if file already exist:
+if os.path.isfile(piano_file_name + '/' + piano_file_name + '.mp3') == False:
+    mid_to_mp3(piano_file_name, v=False) #~30s
+    print(f'\tAudio file {piano_file_name}.mp3 created from {piano_file_name}.mid file.')
+    print(f'\tRuntime: {np.round(time.time() - start_time, 2)}s')
+else:
+    print(f'\tAudio file {piano_file_name}.mp3 already in {piano_file_name} directory.')
+    print(f'\tRuntime: {np.round(time.time() - start_time, 2)}s')
+
+
+#Merge together .mp3 and .mp4 files:
+print(f'\nMerge MP3 Audio and MP4 Video Files Together:')
+#check if file already exist:
+if os.path.isfile(piano_file_name + '/' + piano_file_name + '_Audio_Video.mp4') == False:
+    merge(piano_file_name) #SLOW
+    print(f'\tAudio-video file {piano_file_name}_Audio_Video.mp4 created.')
+    print(f'\tRuntime: {np.round(time.time() - start_time, 2)}s')
+else:
+    print(f'\tAudio-video file {piano_file_name}_Audio_Video.mp4 already in {piano_file_name} directory.')
+    print(f'\tRuntime: {np.round(time.time() - start_time, 2)}s')
+
+print(f'\nEnd of program.')
 
 

@@ -12,6 +12,22 @@ This code takes in a .mid audio fie of a piano recording then generates a matchi
 * Practice Python skills.
 * Incentive for learning more piano songs and having a record through a youtube channel.
 
+## Dependencies
+* json
+* numpy
+* os.path
+* argparse
+* time
+* matplotlib.pyplot
+
+## Running `code_piano_animation.py`
+
+To run `code_piano_animation.py`, use
+
+```sh
+python code_piano_animation.py --param param/param.json --train-size 10000 --test-size 1000 --seed 1234
+```
+
 ## Authors
 Jordan Ducatel
 
