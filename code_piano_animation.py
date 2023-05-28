@@ -12,15 +12,12 @@ import mido
 import matplotlib.pyplot as plt
 import matplotlib
 import ffmpeg
-from midi2audio import FluidSynth
 import time
 from selenium import webdriver
 import shutil
 import os
 import sys
-import time
 import argparse
-import json
 #-----------------------------------------------------
 
 
